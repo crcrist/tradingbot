@@ -1,0 +1,446 @@
+# Stock Price Prediction API - Individual Phase Instructions
+
+## Project Overview
+Build a high-performance stock price prediction API that demonstrates MLOps and performance engineering skills through incremental, validated development phases.
+
+**IMPORTANT**: Use only ONE phase at a time with your LLM. Do not show future phases until current phase is complete and validated.
+
+---
+
+## PHASE 1 ONLY - Foundation Setup
+
+**CURRENT PHASE**: Phase 1 of 6 - Foundation Setup  
+**DURATION**: Week 1  
+**GOAL**: Create basic project structure with working FastAPI server
+
+### What to Build in This Phase:
+1. **Project Structure Setup**
+   ```
+   stock-prediction-api/
+   ├── app/
+   │   ├── __init__.py
+   │   ├── main.py
+   │   └── models/
+   ├── tests/
+   ├── requirements.txt
+   ├── docker-compose.yml
+   └── README.md
+   ```
+
+2. **Basic FastAPI Application**
+   - Create `/health` endpoint that returns {"status": "healthy"}
+   - Create `/predict/{ticker}` endpoint that returns mock prediction data
+   - Add basic request/response models with Pydantic
+   - Include basic error handling for invalid ticker symbols
+
+3. **Containerization**
+   - Create Dockerfile
+   - Create docker-compose.yml for local development
+   - Ensure app runs in container
+
+### CRITICAL CONSTRAINTS:
+- **DO NOT** implement real market data fetching
+- **DO NOT** add Redis or any caching
+- **DO NOT** implement ML models or predictions
+- **DO NOT** add performance monitoring
+- **DO NOT** implement features from future phases
+
+### Mock Response Format:
+```json
+{
+  "ticker": "AAPL",
+  "current_price": 150.00,
+  "prediction": {
+    "price_target": 155.00,
+    "confidence": 0.75,
+    "direction": "bullish"
+  },
+  "timestamp": "2024-01-01T12:00:00Z"
+}
+```
+
+### Validation Criteria ✅
+Before moving to Phase 2, verify:
+- [ ] API starts without errors
+- [ ] GET /health returns 200 with {"status": "healthy"}
+- [ ] GET /predict/AAPL returns mock data in correct format
+- [ ] Invalid tickers return 400 error with helpful message
+- [ ] Basic tests pass (test health endpoint and mock prediction)
+- [ ] Docker container builds successfully
+- [ ] App runs in Docker container and responds to requests
+- [ ] README documents how to run the application
+
+### Success Criteria:
+- Working FastAPI server with containerization
+- All validation criteria checked off
+- Ready to add real data fetching in Phase 2
+
+---
+
+## PHASE 2 ONLY - Data Integration
+
+**CURRENT PHASE**: Phase 2 of 6 - Data Integration  
+**DURATION**: Week 2  
+**GOAL**: Add real market data fetching with proper error handling
+
+### Prerequisites:
+- Phase 1 completed and validated
+- Working FastAPI server with mock endpoints
+
+### What to Build in This Phase:
+1. **Market Data Service**
+   - Choose one data provider: Alpha Vantage (free tier) OR Yahoo Finance (yfinance library)
+   - Create `DataService` class to fetch real stock data
+   - Add retry logic with exponential backoff
+   - Implement rate limiting awareness
+   - Add data validation (ensure prices are reasonable)
+
+2. **Basic Caching Layer**
+   - Add Redis to docker-compose.yml
+   - Implement cache-aside pattern
+   - Cache responses for 5 minutes
+   - Add cache hit/miss logging
+
+3. **Update Prediction Endpoint**
+   - Replace mock data with real current stock price
+   - Keep prediction logic simple (just return current price + small random change)
+   - Add proper error handling for API failures
+
+### CRITICAL CONSTRAINTS:
+- **DO NOT** implement ML models yet
+- **DO NOT** add complex predictions (keep it simple)
+- **DO NOT** add performance monitoring beyond basic logging
+- **DO NOT** implement features from future phases
+- **DO NOT** add multiple models or ensemble approaches
+
+### Required Dependencies to Add:
+```
+redis==4.5.1
+aioredis==2.0.1
+requests==2.31.0
+# Choose one:
+alpha-vantage==2.3.1  # OR
+yfinance==0.2.18
+```
+
+### Validation Criteria ✅
+Before moving to Phase 3, verify:
+- [ ] Successfully fetch real stock data for AAPL, GOOGL, TSLA
+- [ ] API handles provider API failures gracefully (returns 503 with retry message)
+- [ ] Cache working: first request slow, second request fast
+- [ ] Response times under 2 seconds for cached data
+- [ ] Invalid tickers handled properly
+- [ ] Rate limiting respected (no 429 errors from data provider)
+- [ ] Redis container starts and connects successfully
+- [ ] App works both with and without Redis running
+
+### Success Criteria:
+- API serving real stock data with caching
+- Graceful error handling for external API failures
+- Ready to add ML predictions in Phase 3
+
+---
+
+## PHASE 3 ONLY - Simple ML Model
+
+**CURRENT PHASE**: Phase 3 of 6 - Simple ML Model  
+**DURATION**: Week 3  
+**GOAL**: Implement one working prediction model with proper data preprocessing
+
+### Prerequisites:
+- Phase 2 completed and validated
+- API fetching real market data with caching
+
+### What to Build in This Phase:
+1. **Historical Data Collection**
+   - Create function to fetch 1 year of historical data for a ticker
+   - Store in simple CSV files or SQLite database
+   - Add data validation and cleaning
+
+2. **Feature Engineering**
+   - Calculate simple technical indicators:
+     - 5-day and 20-day moving averages
+     - RSI (Relative Strength Index)
+     - Price change percentage
+   - Create feature matrix for training
+
+3. **Single Model Implementation**
+   - Use Random Forest Regressor (simpler than LSTM to start)
+   - Train model to predict next day price change percentage
+   - Save trained model using joblib
+   - Add model loading on startup
+
+4. **Update Prediction Logic**
+   - Replace simple logic with actual ML predictions
+   - Return price change percentage and direction
+   - Add basic confidence estimation
+
+### CRITICAL CONSTRAINTS:
+- **DO NOT** implement multiple models or ensembles
+- **DO NOT** use complex models like LSTM yet
+- **DO NOT** add performance optimizations
+- **DO NOT** implement A/B testing or model versioning
+- **DO NOT** add advanced monitoring
+
+### Required Dependencies to Add:
+```
+scikit-learn==1.3.0
+pandas==2.0.3
+numpy==1.24.3
+joblib==1.3.0
+ta==0.10.2  # for technical indicators
+```
+
+### Model Training Approach:
+- Use last 252 trading days (1 year) as training data
+- Predict next day's price change percentage
+- Features: current price, moving averages, RSI, volume
+- Target: (tomorrow_price - today_price) / today_price
+
+### Validation Criteria ✅
+Before moving to Phase 4, verify:
+- [ ] Model trains successfully on historical data for major stocks
+- [ ] Training completes in under 30 seconds
+- [ ] Predictions returned in reasonable time (<1 second)
+- [ ] Model saves and loads correctly on app restart
+- [ ] Predictions look reasonable (not always same value or random)
+- [ ] Can generate predictions for different ticker symbols
+- [ ] Basic accuracy metrics documented (MAE, RMSE)
+- [ ] Model handles missing data gracefully
+
+### Success Criteria:
+- API with working Random Forest predictions
+- Reproducible model training process
+- Ready for performance optimization in Phase 4
+
+---
+
+## PHASE 4 ONLY - Performance Optimization
+
+**CURRENT PHASE**: Phase 4 of 6 - Performance Optimization  
+**DURATION**: Week 4  
+**GOAL**: Optimize inference speed and add performance monitoring
+
+### Prerequisites:
+- Phase 3 completed and validated
+- Working ML model making predictions
+
+### What to Build in This Phase:
+1. **Model Optimization**
+   - Implement model warm-up on startup (pre-load models in memory)
+   - Optimize feature calculation (vectorize operations)
+   - Add model caching (cache predictions for identical inputs)
+   - Profile and optimize slow functions
+
+2. **Performance Monitoring**
+   - Add request timing middleware
+   - Implement response time logging
+   - Add memory usage tracking
+   - Create performance metrics endpoint
+
+3. **Async Optimizations**
+   - Make data fetching truly async
+   - Add connection pooling
+   - Optimize I/O operations
+
+### CRITICAL CONSTRAINTS:
+- **DO NOT** add multiple models or ensemble yet
+- **DO NOT** implement complex monitoring dashboards
+- **DO NOT** add Prometheus or Grafana
+- **DO NOT** implement Kubernetes deployment
+- **DO NOT** add circuit breakers or advanced resilience
+
+### Performance Targets:
+- Inference time: <100ms for 95th percentile
+- Memory usage: Stable under continuous load
+- Cache hit rate: >80% for repeated requests
+
+### Required Dependencies to Add:
+```
+psutil==5.9.5  # for memory monitoring
+aiofiles==23.1.0  # for async file operations
+```
+
+### Monitoring to Add:
+- Request/response time histogram
+- Memory usage metrics
+- Cache hit/miss ratios
+- Error rate tracking
+- Simple performance dashboard endpoint
+
+### Load Testing:
+- Use built-in tools or simple curl scripts
+- Test with 50-100 concurrent requests
+- Monitor for memory leaks
+- Verify response times under load
+
+### Validation Criteria ✅
+Before moving to Phase 5, verify:
+- [ ] Inference time under 100ms for 95th percentile
+- [ ] Memory usage stable under continuous load (no leaks)
+- [ ] Performance metrics endpoint working
+- [ ] Cache hit rate above 60% with repeated requests
+- [ ] Load test with 100 concurrent requests successful
+- [ ] App starts up in under 30 seconds
+- [ ] No significant performance regression from Phase 3
+- [ ] Error rates remain under 1% during load testing
+
+### Success Criteria:
+- Optimized API with performance monitoring
+- Documented performance improvements
+- Ready for enhanced ML pipeline in Phase 5
+
+---
+
+## PHASE 5 ONLY - Enhanced ML Pipeline
+
+**CURRENT PHASE**: Phase 5 of 6 - Enhanced ML Pipeline  
+**DURATION**: Week 5  
+**GOAL**: Add LSTM model and ensemble approach
+
+### Prerequisites:
+- Phase 4 completed and validated
+- Optimized single-model API
+
+### What to Build in This Phase:
+1. **LSTM Model Implementation**
+   - Build time-series LSTM using TensorFlow/Keras
+   - Handle sequence data properly (lookback window)
+   - Train on same data as Random Forest for comparison
+   - Save model in appropriate format
+
+2. **Ensemble System**
+   - Implement simple voting mechanism (average predictions)
+   - Add model weights based on historical accuracy
+   - Create model selection logic
+   - Add ensemble confidence scoring
+
+3. **Model Management**
+   - Add endpoint to check which models are loaded
+   - Implement basic model health checks
+   - Add prediction confidence scores
+   - Simple model comparison metrics
+
+### CRITICAL CONSTRAINTS:
+- **DO NOT** implement complex A/B testing framework
+- **DO NOT** add automated model retraining
+- **DO NOT** implement model deployment pipelines
+- **DO NOT** add complex monitoring dashboards
+- Keep ensemble logic simple (weighted average)
+
+### Required Dependencies to Add:
+```
+tensorflow==2.13.0
+keras==2.13.1
+```
+
+### Ensemble Approach:
+- Random Forest weight: 0.4
+- LSTM weight: 0.6
+- Final prediction = (RF_pred * 0.4) + (LSTM_pred * 0.6)
+- Confidence = min(RF_confidence, LSTM_confidence)
+
+### New Endpoints to Add:
+- GET `/models/status` - Show loaded models and health
+- GET `/models/compare/{ticker}` - Compare individual model predictions
+
+### Validation Criteria ✅
+Before moving to Phase 6, verify:
+- [ ] LSTM model trains successfully
+- [ ] Both models producing reasonable predictions
+- [ ] Ensemble predictions working (not identical to single model)
+- [ ] Models can be loaded/unloaded without restart
+- [ ] Prediction confidence scores correlate with accuracy
+- [ ] Model comparison endpoint working
+- [ ] Memory usage acceptable with both models loaded
+- [ ] Response times still under 200ms with ensemble
+
+### Success Criteria:
+- Multi-model ensemble system working
+- Improved prediction accuracy over single model
+- Ready for production hardening in Phase 6
+
+---
+
+## PHASE 6 ONLY - Production Readiness
+
+**CURRENT PHASE**: Phase 6 of 6 - Production Readiness  
+**DURATION**: Week 6  
+**GOAL**: Add comprehensive monitoring, testing, and deployment readiness
+
+### Prerequisites:
+- Phase 5 completed and validated
+- Working ensemble prediction system
+
+### What to Build in This Phase:
+1. **Enhanced Monitoring & Observability**
+   - Add Prometheus metrics collection
+   - Implement structured JSON logging
+   - Add health checks for all dependencies (Redis, models, data API)
+   - Create monitoring dashboard with Grafana
+
+2. **Testing & Reliability**
+   - Comprehensive test suite (unit, integration, load)
+   - Implement circuit breakers for external APIs
+   - Add graceful degradation (fallback to cached data)
+   - Error rate monitoring and alerting
+
+3. **Deployment Preparation**
+   - Create production-ready Docker setup
+   - Add Kubernetes manifests (optional)
+   - Environment-based configuration
+   - Documentation for deployment
+
+### Dependencies to Add:
+```
+prometheus-client==0.17.1
+structlog==23.1.0
+pytest==7.4.0
+pytest-asyncio==0.21.1
+locust==2.15.1  # for load testing
+```
+
+### Production Features:
+- Circuit breaker pattern for external APIs
+- Graceful shutdown handling
+- Health check endpoints for orchestrators
+- Request rate limiting
+- Error tracking and alerting
+- Performance SLA monitoring
+
+### Comprehensive Testing:
+- Unit tests for all components
+- Integration tests for end-to-end workflows
+- Load testing with realistic scenarios
+- Failure testing (Redis down, API limits hit, etc.)
+
+### Validation Criteria ✅
+Final validation before project completion:
+- [ ] All tests passing (aim for >90% code coverage)
+- [ ] Circuit breakers trigger correctly under API failures
+- [ ] Graceful degradation works (serves cached data when APIs down)
+- [ ] Prometheus metrics collection working
+- [ ] Grafana dashboard showing key metrics
+- [ ] Load test with 500+ concurrent requests successful
+- [ ] Error rates under 0.5% during normal operation
+- [ ] Memory and CPU usage optimized
+- [ ] Documentation complete for deployment
+- [ ] All endpoints properly documented
+
+### Success Criteria:
+- Production-ready API with full observability
+- Comprehensive testing and monitoring
+- Ready for real-world deployment
+- Portfolio-worthy demonstration of MLOps and performance engineering
+
+---
+
+## Usage Instructions
+
+1. **Copy only the relevant phase** when working with an LLM
+2. **Complete all validation criteria** before proceeding
+3. **Document your results** at the end of each phase
+4. **Don't skip ahead** - each phase builds essential foundation
+5. **Focus on learning** - understand each component before adding complexity
+
+Each phase should take approximately one week, but adjust based on your learning pace and available time.
