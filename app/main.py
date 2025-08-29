@@ -225,7 +225,7 @@ async def compare_models(ticker: str):
             current_price = _get_fallback_price(ticker)
         
         # Get model comparison
-        comparison = prediction_service.get_model_comparison(ticker, current_price)
+        comparison = await prediction_service.get_model_comparison(ticker, current_price)
         
         if comparison is None:
             raise HTTPException(

@@ -250,13 +250,13 @@ class PredictionService:
                 'timestamp': datetime.utcnow().isoformat()
             }
     
-    def get_model_comparison(self, ticker: str, current_price: float) -> Optional[Dict]:
+    async def get_model_comparison(self, ticker: str, current_price: float) -> Optional[Dict]:
         """Get individual model predictions for comparison"""
         try:
             ticker = ticker.upper()
             
             # Get historical data and features (same as prediction logic)
-            historical_data = asyncio.run(self.historical_service.get_historical_data(ticker, days=60))
+            historical_data = await self.historical_service.get_historical_data(ticker, days=60)
             if historical_data is None:
                 return None
             

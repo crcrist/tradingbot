@@ -93,12 +93,15 @@ class ModelWarmupService:
                 logger.debug(f"Starting warmup for {ticker}")
                 start_time = time.time()
                 
-                # Check if model exists and load it
-                model_ready = await self.prediction_service._ensure_model_ready(ticker)
+                # Check if model exists and load it - use the correct method name
+                model_ready = await self.prediction_service._ensure_models_ready(ticker)
                 
                 warmup_time = time.time() - start_time
                 
-                if model_ready:
+                # Check if any models are ready
+                models_available = any(model_ready.values()) if isinstance(model_ready, dict) else False
+                
+                if models_available:
                     # Perform a dummy prediction to warm up the model
                     dummy_price = 100.0
                     await self._dummy_prediction(ticker, dummy_price)
@@ -107,8 +110,8 @@ class ModelWarmupService:
                     return {
                         'ticker': ticker,
                         'success': True,
-                        'model_loaded': ticker in self.prediction_service.loaded_models,
-                        'model_trained': model_ready,
+                        'model_loaded': ticker in self.prediction_service.loaded_models or f"{ticker}_rf" in self.prediction_service.loaded_models,
+                        'model_trained': models_available,
                         'warmup_time': warmup_time
                     }
                 else:

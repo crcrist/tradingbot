@@ -345,10 +345,16 @@ class LSTMModelService:
     def get_model_info(self) -> Dict:
         """Get information about the current LSTM model"""
         if not TENSORFLOW_AVAILABLE:
-            return {'status': 'tensorflow_not_available'}
+            return {
+                'status': 'tensorflow_not_available',
+                'model_type': 'lstm'
+            }
         
         if self.model is None:
-            return {'status': 'no_model_loaded'}
+            return {
+                'status': 'no_model_loaded',
+                'model_type': 'lstm'
+            }
         
         return {
             'status': 'model_loaded',
