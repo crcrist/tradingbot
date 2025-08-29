@@ -34,9 +34,9 @@ performance_middleware = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application startup and shutdown with model warmup"""
+    """Application startup and shutdown with enhanced ML model warmup"""
     # Startup
-    logger.info("Starting Stock Prediction API - Phase 4 (Performance Optimized)")
+    logger.info("Starting Stock Prediction API - Phase 5 (Enhanced ML Pipeline)")
     
     # Connect to Redis with connection pooling
     await cache_service.connect()
@@ -47,12 +47,11 @@ async def lifespan(app: FastAPI):
     # Connect performance middleware to cache service
     cache_service.set_performance_middleware(performance_middleware)
     
-    # Start model warmup in background
-    logger.info("Starting model warmup process...")
-    warmup_task = asyncio.create_task(model_warmup_service.warmup_models(max_concurrent=3))
+    # Start model warmup in background (now includes LSTM models)
+    logger.info("Starting enhanced model warmup process (RF + LSTM)...")
+    warmup_task = asyncio.create_task(model_warmup_service.warmup_models(max_concurrent=2))
     
-    # Don't wait for warmup to complete - let it run in background
-    logger.info("API ready - model warmup running in background")
+    logger.info("API ready - enhanced model warmup running in background")
     
     yield
     
@@ -67,8 +66,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Stock Prediction API",
-    description="High-performance stock price prediction API with ML models - Phase 4",
-    version="4.0.0",
+    description="High-performance stock price prediction API with ensemble ML models - Phase 5",
+    version="5.0.0",
     lifespan=lifespan
 )
 
@@ -90,8 +89,8 @@ async def health_check():
 @app.get("/predict/{ticker}", response_model=PredictionResponse)
 async def predict_stock(ticker: str):
     """
-    Get ML-based stock price prediction with performance optimizations.
-    Features model caching, prediction caching, and optimized inference.
+    Get ensemble ML prediction combining Random Forest and LSTM models.
+    Features intelligent ensemble weighting and model comparison (Phase 5).
     """
     ticker = ticker.upper()
     
@@ -121,7 +120,7 @@ async def predict_stock(ticker: str):
         if stock_data:
             current_price = stock_data['current_price']
             data_source = "real_time"
-            # Cache the data for 5 minutes (with optimized caching)
+            # Cache the data for 5 minutes
             await cache_service.set(cache_key, stock_data)
             logger.debug(f"Successfully fetched and cached real data for {ticker}: ${current_price}")
         else:
@@ -129,7 +128,7 @@ async def predict_stock(ticker: str):
             logger.warning(f"Failed to fetch real data for {ticker}, using fallback")
             current_price = _get_fallback_price(ticker)
     
-    # Get ML prediction (with prediction caching and optimizations)
+    # Get ensemble ML prediction (Random Forest + LSTM)
     ml_prediction = await prediction_service.get_ml_prediction(ticker, current_price)
     
     if ml_prediction:
@@ -139,14 +138,18 @@ async def predict_stock(ticker: str):
             direction=ml_prediction['direction']
         )
         
-        logger.debug(f"ML prediction for {ticker}: {ml_prediction['direction']} "
+        models_info = f"models: {ml_prediction.get('models_used', 0)}"
+        if ml_prediction.get('direction_agreement'):
+            models_info += " (agreement)"
+        
+        logger.debug(f"Ensemble prediction for {ticker}: {ml_prediction['direction']} "
                     f"target ${ml_prediction['price_target']:.2f} "
                     f"({ml_prediction['predicted_change_pct']:+.2f}%) "
                     f"confidence: {ml_prediction['confidence']:.2f} "
-                    f"(model: {ml_prediction['model_type']})")
+                    f"(type: {ml_prediction['model_type']}, {models_info})")
     else:
-        # Fallback to simple prediction if ML fails
-        logger.warning(f"ML prediction failed for {ticker}, using simple fallback")
+        # Fallback to simple prediction if ensemble fails
+        logger.warning(f"Ensemble prediction failed for {ticker}, using simple fallback")
         price_change_percent = random.uniform(-0.02, 0.02)  # ±2%
         price_target = current_price * (1 + price_change_percent)
         confidence = 0.5
@@ -168,7 +171,7 @@ async def predict_stock(ticker: str):
 
 @app.get("/model/status/{ticker}")
 async def get_model_status(ticker: str):
-    """Get ML model status for a ticker"""
+    """Get ensemble model status for a ticker (Phase 5)"""
     ticker = ticker.upper()
     
     if ticker not in VALID_TICKERS:
@@ -181,9 +184,65 @@ async def get_model_status(ticker: str):
     return status
 
 
+@app.get("/models/status")
+async def get_all_models_status():
+    """Get comprehensive status of all ensemble models (NEW in Phase 5)"""
+    try:
+        # Get ensemble service status
+        ensemble_status = prediction_service.ensemble_service.get_models_status()
+        ensemble_health = prediction_service.ensemble_service.get_ensemble_health()
+        
+        return {
+            "ensemble_system": ensemble_status,
+            "ensemble_health": ensemble_health,
+            "performance": prediction_service.get_performance_stats(),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting all models status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve models status")
+
+
+@app.get("/models/compare/{ticker}")
+async def compare_models(ticker: str):
+    """Compare individual model predictions (NEW in Phase 5)"""
+    ticker = ticker.upper()
+    
+    if ticker not in VALID_TICKERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid ticker symbol '{ticker}'. Supported tickers: {', '.join(sorted(VALID_TICKERS))}"
+        )
+    
+    try:
+        # Get current price for comparison
+        cache_key = cache_service.generate_cache_key("stock_data", ticker)
+        cached_data = await cache_service.get(cache_key)
+        
+        if cached_data:
+            current_price = cached_data['current_price']
+        else:
+            current_price = _get_fallback_price(ticker)
+        
+        # Get model comparison
+        comparison = prediction_service.get_model_comparison(ticker, current_price)
+        
+        if comparison is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Could not generate model comparison for {ticker}"
+            )
+        
+        return comparison
+        
+    except Exception as e:
+        logger.error(f"Error comparing models for {ticker}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to compare models")
+
+
 @app.post("/model/retrain/{ticker}")
 async def retrain_model(ticker: str, background_tasks: BackgroundTasks):
-    """Trigger model retraining for a ticker"""
+    """Trigger ensemble model retraining for a ticker"""
     ticker = ticker.upper()
     
     if ticker not in VALID_TICKERS:
@@ -196,20 +255,21 @@ async def retrain_model(ticker: str, background_tasks: BackgroundTasks):
     background_tasks.add_task(prediction_service.retrain_model, ticker)
     
     return {
-        "message": f"Model retraining started for {ticker}",
+        "message": f"Ensemble model retraining started for {ticker}",
         "ticker": ticker,
+        "models": ["random_forest", "lstm"],
         "status": "training_initiated"
     }
 
 
 @app.get("/performance/metrics")
 async def get_performance_metrics():
-    """Get comprehensive performance metrics"""
+    """Get comprehensive performance metrics including ensemble performance"""
     try:
         # Get middleware performance stats
         middleware_stats = performance_middleware.get_stats() if performance_middleware else {}
         
-        # Get prediction service performance stats
+        # Get prediction service performance stats (now ensemble)
         prediction_stats = prediction_service.get_performance_stats()
         
         # Get cache statistics
@@ -217,6 +277,9 @@ async def get_performance_metrics():
         
         # Get warmup statistics
         warmup_stats = model_warmup_service.get_warmup_stats()
+        
+        # Get ensemble health
+        ensemble_health = prediction_service.ensemble_service.get_ensemble_health()
         
         return {
             "timestamp": datetime.utcnow().isoformat(),
@@ -227,6 +290,7 @@ async def get_performance_metrics():
                 **cache_stats
             },
             "prediction_performance": prediction_stats,
+            "ensemble_health": ensemble_health,
             "model_warmup": warmup_stats,
             "system_status": "healthy"
         }
@@ -237,10 +301,11 @@ async def get_performance_metrics():
 
 @app.get("/performance/summary")
 async def get_performance_summary():
-    """Get simplified performance summary"""
+    """Get simplified performance summary for ensemble system"""
     try:
         middleware_stats = performance_middleware.get_stats() if performance_middleware else {}
         prediction_stats = prediction_service.get_performance_stats()
+        ensemble_health = prediction_service.ensemble_service.get_ensemble_health()
         
         # Calculate key metrics
         predict_endpoint_stats = middleware_stats.get('request_stats', {}).get('GET /predict/{ticker}', {})
@@ -252,14 +317,16 @@ async def get_performance_summary():
                 "total_requests": predict_endpoint_stats.get('count', 0),
                 "error_rate": predict_endpoint_stats.get('error_rate', 0)
             },
-            "ml_performance": {
+            "ensemble_performance": {
                 "avg_prediction_time": prediction_stats.get('avg_time', 0),
-                "predictions_under_100ms": prediction_stats.get('under_100ms', 0),
-                "total_predictions": prediction_stats.get('total_predictions', 0)
+                "predictions_under_200ms": prediction_stats.get('under_200ms', 0),
+                "total_predictions": prediction_stats.get('total_predictions', 0),
+                "ensemble_error_rate": ensemble_health.get('error_rate', 0),
+                "models_available": ensemble_health.get('models_available', 0)
             },
             "cache_performance": middleware_stats.get('cache_stats', {}).get('hit_rate', 0),
             "memory_usage_mb": middleware_stats.get('memory_stats', {}).get('current_mb', 0),
-            "status": "optimal" if predict_endpoint_stats.get('p95_time', 0) < 1.0 else "degraded"
+            "status": "optimal" if predict_endpoint_stats.get('p95_time', 0) < 2.0 else "degraded"  # Relaxed for ensemble
         }
         
         return summary
@@ -281,16 +348,16 @@ def _get_fallback_price(ticker: str) -> float:
     Updated with more realistic current prices (August 2025)
     """
     base_prices = {
-        "AAPL": 185.00,    # More realistic current Apple price
-        "GOOGL": 135.00,   # Alphabet
-        "MSFT": 420.00,    # Microsoft
-        "AMZN": 140.00,    # Amazon
-        "TSLA": 240.00,    # Tesla - closer to recent range
-        "META": 315.00,    # Meta
-        "NVDA": 125.00,    # NVIDIA (post-split adjusted)
-        "NFLX": 450.00,    # Netflix
-        "ORCL": 135.00,    # Oracle
-        "CRM": 240.00      # Salesforce
+        "AAPL": 185.00,
+        "GOOGL": 135.00,
+        "MSFT": 420.00,
+        "AMZN": 140.00,
+        "TSLA": 240.00,
+        "META": 315.00,
+        "NVDA": 125.00,
+        "NFLX": 450.00,
+        "ORCL": 135.00,
+        "CRM": 240.00
     }
     return base_prices.get(ticker, 100.00)
 
