@@ -88,8 +88,9 @@ class PredictionService:
                 return self._fallback_prediction(current_price)
             
             # Convert predicted change percentage to target price
-            predicted_change_pct = ensemble_result['predicted_change_pct'] / 100.0  # Convert from percentage
-            target_price = current_price * (1 + predicted_change_pct)
+# Convert predicted change percentage to target price
+            predicted_change_pct = ensemble_result['predicted_change_pct']  # Already in percentage form
+            target_price = current_price * (1 + predicted_change_pct / 100.0)  # Divide here instead
             
             prediction_result = {
                 'price_target': round(target_price, 2),
