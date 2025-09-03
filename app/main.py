@@ -1,3 +1,4 @@
+# app/main.py - NVIDIA-focused version
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 import random
@@ -32,11 +33,15 @@ model_warmup_service = ModelWarmupService(prediction_service)
 # Global performance middleware instance
 performance_middleware = None
 
+# FOCUS ON NVIDIA ONLY
+FOCUS_TICKER = "NVDA"
+VALID_TICKERS = {"NVDA"}  # Only NVIDIA for now
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application startup and shutdown with enhanced ML model warmup"""
+    """Application startup and shutdown - NVIDIA focused"""
     # Startup
-    logger.info("Starting Stock Prediction API - Phase 5 (Enhanced ML Pipeline)")
+    logger.info("Starting Stock Prediction API - NVIDIA Focus Mode")
     
     # Connect to Redis with connection pooling
     await cache_service.connect()
@@ -47,16 +52,18 @@ async def lifespan(app: FastAPI):
     # Connect performance middleware to cache service
     cache_service.set_performance_middleware(performance_middleware)
     
-    # Start model warmup in background (now includes LSTM models)
-    logger.info("Starting enhanced model warmup process (RF + LSTM)...")
-    warmup_task = asyncio.create_task(model_warmup_service.warmup_models(max_concurrent=2))
+    # Start model warmup for NVIDIA only (much faster!)
+    logger.info("Starting NVIDIA-only model warmup...")
+    warmup_task = asyncio.create_task(
+        model_warmup_service.warmup_single_ticker(FOCUS_TICKER)
+    )
     
-    logger.info("API ready - enhanced model warmup running in background")
+    logger.info("API ready - NVIDIA model warmup running in background")
     
     yield
     
     # Shutdown
-    logger.info("Shutting down Stock Prediction API")
+    logger.info("Shutting down NVIDIA-focused Stock Prediction API")
     
     # Cancel warmup task if still running
     if not warmup_task.done():
@@ -65,9 +72,9 @@ async def lifespan(app: FastAPI):
     await cache_service.close()
 
 app = FastAPI(
-    title="Stock Prediction API",
-    description="High-performance stock price prediction API with ensemble ML models - Phase 5",
-    version="5.0.0",
+    title="Stock Prediction API - NVIDIA Focus",
+    description="High-performance NVIDIA stock prediction with ensemble ML models",
+    version="5.1.0-NVIDIA",
     lifespan=lifespan
 )
 
@@ -75,30 +82,31 @@ app = FastAPI(
 performance_middleware = PerformanceMiddleware(app)
 app.add_middleware(PerformanceMiddleware)
 
-# Valid ticker symbols for basic validation
-VALID_TICKERS = {
-    "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "NFLX", "ORCL", "CRM"
-}
-
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint with performance tracking"""
+    """Health check endpoint"""
     return HealthResponse(status="healthy")
 
+@app.get("/predict", response_model=PredictionResponse)
+@app.get("/predict/", response_model=PredictionResponse) 
+async def predict_nvidia():
+    """Get NVIDIA stock prediction (default endpoint)"""
+    return await predict_stock("NVDA")
 
 @app.get("/predict/{ticker}", response_model=PredictionResponse)
 async def predict_stock(ticker: str):
     """
-    Get ensemble ML prediction combining Random Forest and LSTM models.
-    Features intelligent ensemble weighting and model comparison (Phase 5).
+    Get ensemble ML prediction for supported stocks.
+    Currently focused on NVIDIA (NVDA) only.
     """
     ticker = ticker.upper()
     
-    # Basic ticker validation
+    # Basic ticker validation - only NVIDIA for now
     if ticker not in VALID_TICKERS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid ticker symbol '{ticker}'. Supported tickers: {', '.join(sorted(VALID_TICKERS))}"
+            detail=f"Currently only NVIDIA (NVDA) is supported in focus mode. "
+                   f"You requested: {ticker}. Use /predict or /predict/NVDA"
         )
     
     # Try to get cached data first (optimized with memory cache)
@@ -168,50 +176,41 @@ async def predict_stock(ticker: str):
         timestamp=datetime.utcnow()
     )
 
+@app.get("/model/status")
+@app.get("/model/status/")
+async def get_nvidia_model_status():
+    """Get NVIDIA model status (default endpoint)"""
+    return await get_model_status("NVDA")
 
 @app.get("/model/status/{ticker}")
 async def get_model_status(ticker: str):
-    """Get ensemble model status for a ticker (Phase 5)"""
+    """Get ensemble model status for a ticker"""
     ticker = ticker.upper()
     
     if ticker not in VALID_TICKERS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid ticker symbol '{ticker}'. Supported tickers: {', '.join(sorted(VALID_TICKERS))}"
+            detail=f"Currently only NVIDIA (NVDA) is supported. You requested: {ticker}"
         )
     
     status = prediction_service.get_model_status(ticker)
     return status
 
-
-@app.get("/models/status")
-async def get_all_models_status():
-    """Get comprehensive status of all ensemble models (NEW in Phase 5)"""
-    try:
-        # Get ensemble service status
-        ensemble_status = prediction_service.ensemble_service.get_models_status()
-        ensemble_health = prediction_service.ensemble_service.get_ensemble_health()
-        
-        return {
-            "ensemble_system": ensemble_status,
-            "ensemble_health": ensemble_health,
-            "performance": prediction_service.get_performance_stats(),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Error getting all models status: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve models status")
-
+@app.get("/models/compare")
+@app.get("/models/compare/")
+async def compare_nvidia_models():
+    """Compare NVIDIA model predictions (default endpoint)"""
+    return await compare_models("NVDA")
 
 @app.get("/models/compare/{ticker}")
 async def compare_models(ticker: str):
-    """Compare individual model predictions (NEW in Phase 5)"""
+    """Compare individual model predictions"""
     ticker = ticker.upper()
     
     if ticker not in VALID_TICKERS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid ticker symbol '{ticker}'. Supported tickers: {', '.join(sorted(VALID_TICKERS))}"
+            detail=f"Currently only NVIDIA (NVDA) is supported. You requested: {ticker}"
         )
     
     try:
@@ -239,6 +238,31 @@ async def compare_models(ticker: str):
         logger.error(f"Error comparing models for {ticker}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to compare models")
 
+@app.get("/models/status")
+async def get_all_models_status():
+    """Get comprehensive status of NVIDIA ensemble models"""
+    try:
+        # Get ensemble service status
+        ensemble_status = prediction_service.ensemble_service.get_models_status()
+        ensemble_health = prediction_service.ensemble_service.get_ensemble_health()
+        
+        return {
+            "focus_mode": "NVIDIA_ONLY",
+            "supported_tickers": list(VALID_TICKERS),
+            "ensemble_system": ensemble_status,
+            "ensemble_health": ensemble_health,
+            "performance": prediction_service.get_performance_stats(),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting all models status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve models status")
+
+@app.post("/model/retrain")
+@app.post("/model/retrain/")
+async def retrain_nvidia_model(background_tasks: BackgroundTasks):
+    """Trigger NVIDIA model retraining (default endpoint)"""
+    return await retrain_model("NVDA", background_tasks)
 
 @app.post("/model/retrain/{ticker}")
 async def retrain_model(ticker: str, background_tasks: BackgroundTasks):
@@ -248,7 +272,7 @@ async def retrain_model(ticker: str, background_tasks: BackgroundTasks):
     if ticker not in VALID_TICKERS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid ticker symbol '{ticker}'. Supported tickers: {', '.join(sorted(VALID_TICKERS))}"
+            detail=f"Currently only NVIDIA (NVDA) is supported. You requested: {ticker}"
         )
     
     # Add retraining task to background
@@ -258,18 +282,18 @@ async def retrain_model(ticker: str, background_tasks: BackgroundTasks):
         "message": f"Ensemble model retraining started for {ticker}",
         "ticker": ticker,
         "models": ["random_forest", "lstm"],
-        "status": "training_initiated"
+        "status": "training_initiated",
+        "focus_mode": "NVIDIA_ONLY"
     }
-
 
 @app.get("/performance/metrics")
 async def get_performance_metrics():
-    """Get comprehensive performance metrics including ensemble performance"""
+    """Get comprehensive performance metrics"""
     try:
         # Get middleware performance stats
         middleware_stats = performance_middleware.get_stats() if performance_middleware else {}
         
-        # Get prediction service performance stats (now ensemble)
+        # Get prediction service performance stats
         prediction_stats = prediction_service.get_performance_stats()
         
         # Get cache statistics
@@ -282,6 +306,7 @@ async def get_performance_metrics():
         ensemble_health = prediction_service.ensemble_service.get_ensemble_health()
         
         return {
+            "focus_mode": "NVIDIA_ONLY",
             "timestamp": datetime.utcnow().isoformat(),
             "request_performance": middleware_stats.get('request_stats', {}),
             "memory_usage": middleware_stats.get('memory_stats', {}),
@@ -298,10 +323,9 @@ async def get_performance_metrics():
         logger.error(f"Error getting performance metrics: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve performance metrics")
 
-
 @app.get("/performance/summary")
 async def get_performance_summary():
-    """Get simplified performance summary for ensemble system"""
+    """Get simplified performance summary for NVIDIA ensemble system"""
     try:
         middleware_stats = performance_middleware.get_stats() if performance_middleware else {}
         prediction_stats = prediction_service.get_performance_stats()
@@ -311,6 +335,7 @@ async def get_performance_summary():
         predict_endpoint_stats = middleware_stats.get('request_stats', {}).get('GET /predict/{ticker}', {})
         
         summary = {
+            "focus_mode": "NVIDIA_ONLY",
             "api_performance": {
                 "avg_response_time": predict_endpoint_stats.get('avg_time', 0),
                 "p95_response_time": predict_endpoint_stats.get('p95_time', 0),
@@ -326,7 +351,7 @@ async def get_performance_summary():
             },
             "cache_performance": middleware_stats.get('cache_stats', {}).get('hit_rate', 0),
             "memory_usage_mb": middleware_stats.get('memory_stats', {}).get('current_mb', 0),
-            "status": "optimal" if predict_endpoint_stats.get('p95_time', 0) < 2.0 else "degraded"  # Relaxed for ensemble
+            "status": "optimal" if predict_endpoint_stats.get('p95_time', 0) < 2.0 else "degraded"
         }
         
         return summary
@@ -335,32 +360,38 @@ async def get_performance_summary():
         logger.error(f"Error getting performance summary: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve performance summary")
 
-
 @app.get("/warmup/status")
 async def get_warmup_status():
     """Get model warmup status"""
     return model_warmup_service.get_warmup_stats()
 
+@app.get("/focus-mode")
+async def get_focus_mode_info():
+    """Get information about current focus mode"""
+    return {
+        "mode": "NVIDIA_ONLY",
+        "supported_tickers": list(VALID_TICKERS),
+        "focus_ticker": FOCUS_TICKER,
+        "description": "System is optimized for NVIDIA stock predictions only",
+        "endpoints": {
+            "prediction": ["/predict", "/predict/NVDA"],
+            "model_status": ["/model/status", "/model/status/NVDA"],
+            "model_comparison": ["/models/compare", "/models/compare/NVDA"],
+            "retrain": ["/model/retrain", "/model/retrain/NVDA"]
+        },
+        "benefits": [
+            "No API rate limiting issues",
+            "Faster startup (only 1 stock to warm up)",
+            "Lower memory usage",
+            "Simplified testing and debugging"
+        ]
+    }
 
 def _get_fallback_price(ticker: str) -> float:
-    """
-    Fallback mock prices when real data unavailable
-    Updated with more realistic current prices (August 2025)
-    """
-    base_prices = {
-        "AAPL": 185.00,
-        "GOOGL": 135.00,
-        "MSFT": 420.00,
-        "AMZN": 140.00,
-        "TSLA": 240.00,
-        "META": 315.00,
-        "NVDA": 125.00,
-        "NFLX": 450.00,
-        "ORCL": 135.00,
-        "CRM": 240.00
-    }
-    return base_prices.get(ticker, 100.00)
-
+    """Fallback price for NVIDIA"""
+    if ticker == "NVDA":
+        return 125.00  # Realistic NVIDIA price
+    return 100.00
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):

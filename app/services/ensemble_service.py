@@ -162,7 +162,7 @@ class EnsembleService:
                 ensemble_confidence = min(0.95, ensemble_confidence * 1.1)
             
             return {
-                'predicted_change_pct': round(weighted_prediction * 100, 2),  # Convert to percentage
+                'predicted_change_pct': round(weighted_prediction, 6),  # Convert to percentage
                 'direction': ensemble_direction,
                 'confidence': round(ensemble_confidence, 2),
                 'model_type': 'ensemble',
@@ -179,7 +179,7 @@ class EnsembleService:
             avg_confidence = np.mean([pred['confidence'] for pred in individual_predictions])
             
             return {
-                'predicted_change_pct': round(avg_prediction * 100, 2),
+                'predicted_change_pct': round(avg_prediction, 6),
                 'direction': "bullish" if avg_prediction > 0 else "bearish",
                 'confidence': round(avg_confidence, 2),
                 'model_type': 'ensemble_fallback',
